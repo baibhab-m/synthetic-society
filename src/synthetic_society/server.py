@@ -20,7 +20,14 @@ from pydantic import BaseModel, Field
 
 from .presets import PRESETS, build_config_for
 from .runner import SyntheticSociety
-from .schema import SimConfig
+from .schema import (
+    PersonaArchetype,
+    Platform,
+    PlatformMix,
+    Region,
+    SimConfig,
+    TimelineEvent,
+)
 
 log = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
@@ -35,7 +42,7 @@ app = FastAPI(
         "Multi-agent simulation engine for the Indian market. "
         "Seed any scenario, simulate thousands of agents, get a prediction."
     ),
-    version="0.1.0",
+    version="0.2.0",
 )
 
 
@@ -47,6 +54,12 @@ class RunRequest(BaseModel):
     population_size: int = 60
     max_rounds: int = 8
     god_variables: list[str] = Field(default_factory=list)
+    timeline_events: list[TimelineEvent] = Field(default_factory=list)
+    platform_weights: dict[str, float] = Field(default_factory=dict)
+    region_mix: dict[str, int] = Field(default_factory=dict)
+    watcher_archetypes: list[str] = Field(default_factory=list)
+    cost_budget_usd: float = 5.0
+    stance_target: dict[str, float] = Field(default_factory=dict)
 
 
 class RunResponse(BaseModel):
@@ -81,6 +94,17 @@ async def create_run(req: RunRequest, bg: BackgroundTasks) -> RunResponse:
     cfg.population_size = req.population_size
     cfg.max_rounds = req.max_rounds
     cfg.god_variables = req.god_variables
+    cfg.timeline_events = req.timeline_events
+    cfg.cost_budget_usd = req.cost_budget_usd
+    cfg.stance_target = req.stance_target
+    if req.platform_weights:
+        cfg.platform_mix = PlatformMix(weights={
+            Platform(k): v for k, v in req.platform_weights.items()
+        })
+    if req.region_mix:
+        cfg.region_mix = {Region(k): v for k, v in req.region_mix.items()}
+    if req.watcher_archetypes:
+        cfg.watcher_archetypes = [PersonaArchetype(a) for a in req.watcher_archetypes]
 
     bg.add_task(_run_async, run_id, cfg, req.seed_text, req.question)
 

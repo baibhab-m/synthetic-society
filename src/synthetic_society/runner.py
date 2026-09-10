@@ -50,12 +50,16 @@ class SyntheticSociety:
         personas = await self.persona_generator.generate(config, graph)
 
         # 3. Sim
-        log.info("Running simulation: %d rounds x %d personas", config.max_rounds, len(personas))
+        log.info(
+            "Running simulation: %d rounds x %d personas (budget $%.2f)",
+            config.max_rounds, len(personas), config.cost_budget_usd,
+        )
         result = SimResult(config=config, graph=graph, personas=personas)
-        # Run loop, then merge rounds into result.
         sim = await self.loop.run(config, personas)
         result.rounds = sim.rounds
         result.finished_at = sim.finished_at
+        result.total_cost_usd = sim.total_cost_usd
+        result.budget_exceeded = sim.budget_exceeded
 
         # 4. Report
         log.info("Rendering report")

@@ -15,7 +15,7 @@ import logging
 from typing import Any
 
 from .llm import LLMClient
-from .schema import Entity, KnowledgeGraph, Relation
+from .schema import Entity, EntityType, KnowledgeGraph, Relation
 
 log = logging.getLogger(__name__)
 
@@ -23,19 +23,26 @@ log = logging.getLogger(__name__)
 ENTITY_SYSTEM = """You are an entity extractor for an Indian-context knowledge graph.
 
 Extract every concrete entity the seed text mentions or strongly implies.
-Types you should use:
-  Person, Organization, Company, Product, Brand, Event, Policy, Location,
-  City, State, Community, Hashtag, Party, Religion, Sector, Asset, Risk
+Types you MUST use (string values exactly as listed):
+  person, organization, company, product, brand, event, policy, policy_text,
+  court_case, scheme, location, city, state, community, hashtag, party,
+  religion, sector, asset, risk, trend
+
+Indian context types to look for:
+  - "scheme" for government schemes (PM-KISAN, MGNREGA, Ayushman Bharat, ...)
+  - "policy_text" for any draft Bill / circular / notification
+  - "court_case" for any petition / ruling (Article 370, 377, ...)
+  - "trend" for cultural / political / market trends
 
 Rules:
 - Names are in the original script (Devanagari, Tamil, etc. — preserve them).
-- Add 2-5 attributes per entity when you can infer them (role, sector, region,
-  price-point, sentiment-cue, etc.). Be conservative; skip if unsure.
-- For ambiguous references, mark `attrs.canonical = true` so we can dedupe later.
+- Add 2-5 attributes per entity when you can infer them (role, sector,
+  region, price-point, sentiment-cue, etc.). Be conservative; skip if unsure.
+- For ambiguous references, mark `attrs.canonical = true` so we can dedupe.
 - Output JSON only. Format:
 {
   "entities": [
-    {"id": "snake_case_id", "type": "Product", "name": "...", "attrs": {...}}
+    {"id": "snake_case_id", "type": "scheme", "name": "...", "attrs": {...}}
   ]
 }"""
 
@@ -47,7 +54,8 @@ relations between them. Use only these relation kinds:
   owns, employs, part_of, located_in, competes_with, partners_with,
   regulates, opposes, supports, follows, mentions, targets, sells_to,
   manufactures, distributes, markets_to, boycotted_by, endorsed_by,
-  invested_in, acquired_by, parent_of, child_of, spouse_of
+  invested_in, acquired_by, parent_of, child_of, spouse_of, cites,
+  supersedes, amends
 
 Rules:
 - Both endpoints must be entity ids from the input list. If a needed entity
@@ -69,15 +77,20 @@ class GraphBuilder:
     async def build(self, seed_text: str, *, hint: str = "") -> KnowledgeGraph:
         log.info("Extracting entities from seed (%d chars)", len(seed_text))
         entities_raw = await self._extract_entities(seed_text, hint)
-        entities = [
-            Entity(
-                id=e["id"],
-                type=e["type"],
-                name=e["name"],
-                attrs=e.get("attrs", {}),
+        entities: list[Entity] = []
+        for e in entities_raw:
+            try:
+                etype = EntityType(e.get("type", "trend"))
+            except ValueError:
+                etype = EntityType.TREND
+            entities.append(
+                Entity(
+                    id=e["id"],
+                    type=etype,
+                    name=e["name"],
+                    attrs=e.get("attrs", {}),
+                )
             )
-            for e in entities_raw
-        ]
 
         log.info("Extracting relations between %d entities", len(entities))
         rels_raw = await self._extract_relations(seed_text, entities)
@@ -92,7 +105,6 @@ class GraphBuilder:
             for r in rels_raw
         ]
 
-        # Dedupe entities by id, keep first.
         seen: set[str] = set()
         unique_entities: list[Entity] = []
         for e in entities:
@@ -120,7 +132,7 @@ class GraphBuilder:
         self, text: str, entities: list[Entity]
     ) -> list[dict[str, Any]]:
         ent_table = "\n".join(
-            f"- {e.id} ({e.type}): {e.name}" for e in entities
+            f"- {e.id} ({e.type.value}): {e.name}" for e in entities
         )
         user = (
             f"Seed text:\n```\n{text[:6000]}\n```\n\n"

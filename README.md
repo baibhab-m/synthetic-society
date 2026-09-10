@@ -20,13 +20,24 @@ Most multi-agent sim engines are written with US/EU defaults — soccer moms,
 tech bros, suburban retirees. India doesn't fit those priors. Synthetic
 Society ships with:
 
-- **15 India-tuned persona archetypes** (tier-2 working professional,
-  small-business owner, college student, homemaker rural/urban, farmer
-  agrarian, daily-wage worker, political partisan, activist organizer,
-  creator/influencer, investor/founder, …).
-- **Per-archetype language priors** — Hinglish for urban students, Tanglish
-  for tier-2 Tamil Nadu SMB, formal Hindi for political actors, Bengali/
-  Marathi/Gujarati where it fits.
+- **17 India-tuned persona archetypes** — including the segments every
+  other engine misses: NRI diaspora (huge on Twitter India), gig workers
+  (Zomato/Swiggy riders, politically aware post-2024), migrant labour
+  (Bihar→Mumbai, Bhojpuri register), govt employees (PSU babus, distinct
+  risk profile), and cricket fans (every brand tie-in).
+- **31 Indian states + diaspora** as region priors, weighted by real
+  population (UP-heavy, TN separate, NE separate).
+- **13 languages + 3 code-switching registers** — Odia / Assamese / Urdu /
+  Maithili in addition to the standard 9; Tanglish and Bhojpuri-English
+  as first-class mixed-language buckets.
+- **15 platforms with per-archetype priors** — Twitter, WhatsApp,
+  Instagram, YouTube, Reddit India, Koo, ShareChat, anonymous confession
+  boards, TV news debate, print op-ed. The engine routes each agent to
+  their primary platforms and the public messages get platform-specific
+  reach + virality priors.
+- **Cost budget enforcement** — hard USD cap; sim halts on overrun.
+- **Evidence citations** — agents tag the real entities (PM-KISAN, RBI
+  circular, a brand) they reference; the report aggregates them.
 - **India-aware media diets** — WhatsApp forwards, Aaj Tak, Republic TV,
   The Ken, Inc42, Reddit India, Newslaundry, etc.
 - **First-class seed loaders** for consumer, political, campus, and
@@ -72,14 +83,14 @@ Every run writes two files to `./runs/`:
 
 | Module | What it does |
 |---|---|
-| `schema.py` | Typed contract (Persona, Entity, Relation, AgentMessage, SimResult). |
+| `schema.py` | Typed contract. 15 archetypes × 31 states × 13 languages × 15 platforms; cost budget, timeline events, evidence citations. |
 | `llm.py` | Thin async OpenAI-compatible HTTP client (no vendor lock). |
 | `graph.py` | Two-pass GraphRAG: entity extraction → relation extraction. |
-| `personas.py` | India-tuned persona generator with archetype priors. |
-| `engine.py` | Round-based simulation loop with memory, sentiment, stance drift. |
-| `report.py` | Post-run analysis: per-archetype stats + ReportAgent LLM render. |
+| `personas.py` | India-tuned persona generator: archetype / region / language / platform priors. |
+| `engine.py` | Round-based sim loop. Routes each agent to their primary platform, enforces USD budget. |
+| `report.py` | Per-archetype + per-platform stats, evidence aggregation, ReportAgent render. |
 | `runner.py` | End-to-end orchestrator: `SyntheticSociety.run_full()`. |
-| `presets.py` | Domain presets (consumer, political, campus, startup). |
+| `presets.py` | Domain presets with default platform mixes. |
 | `seeds/*.py` | Real-world seed loaders (brand kit, policy brief, fundraise pitch). |
 | `server.py` | FastAPI: `POST /runs`, `GET /runs/{id}`, `GET /presets`. |
 | `cli.py` | Typer CLI: `synsoc run / presets / serve`. |
@@ -87,10 +98,10 @@ Every run writes two files to `./runs/`:
 ### Why hand-rolled, not autogen/langgraph?
 
 We need fine-grained control over (a) language register per agent,
-(b) audience targeting (public vs DM), (c) memory compression cadence,
-(d) operator-injected "god events" mid-simulation. Off-the-shelf
-agent frameworks push you toward tool-calling chat loops; that surface
-area is exactly what we don't want.
+(b) platform routing (WhatsApp vs Twitter vs Reddit), (c) memory
+compression cadence, (d) operator-injected perturbations mid-sim.
+Off-the-shelf agent frameworks push you toward tool-calling chat loops;
+that surface area is exactly what we don't want.
 
 ## Domains
 
@@ -148,17 +159,43 @@ seed = startup.fundraise_pitch(
 )
 ```
 
-## God events
+## God events & timeline
 
-Inject perturbations mid-simulation to test counterfactuals:
+Two ways to inject perturbations mid-simulation:
 
 ```bash
+# Legacy: free-text drops, one per round (1-indexed)
 synsoc run consumer --god "RBI announces 28% GST on premium cards" \
                    --god "Viral tweet from @RandomHater about the campaign"
+
+# Structured: scheduled drops with source + platform
+synsoc run political \
+  --timeline "2|rbi_hike|Repo rate +25bps|RBI circular|twitter_x" \
+  --timeline "4|viral_tweet|@opposition_leader calls it anti-farmer|@opposition_leader|twitter_x"
 ```
 
-Each `--god` value is dropped on the population at the start of the
-matching round (1-indexed).
+`--god` and `--timeline` can be combined.
+
+## Configuration knobs (CLI + server)
+
+```bash
+synsoc run consumer \
+  --pop 80 --rounds 12 \
+  --platform twitter_x=3 --platform instagram=2 --platform reddit_india=1 \
+  --watch gig_worker --watch nri_diaspora \
+  --budget 1.50
+```
+
+| Knob | What |
+|---|---|
+| `--platform k=v` | Per-platform weight. Multi-platform sims (Twitter+WhatsApp+Reddit) cost more tokens but read like the real Indian discourse. |
+| `--watch ARCH` | Drill into specific archetypes in the report. |
+| `--budget USD` | Hard cap on LLM spend. Sim halts when exceeded. |
+| `--timeline` | Scheduled drops with source + platform attribution. |
+| `--god` | Legacy free-text drops. |
+| `region_mix` (server) | Pin state-level population priors (UP-heavy, Tamil Nadu-only, etc.). |
+| `stance_target` (server) | Bias the initial opinion distribution (`pro`/`anti`/`neutral`/`undecided`). |
+| `cost_budget_usd` (server) | Same as `--budget`. |
 
 ## Configuration
 

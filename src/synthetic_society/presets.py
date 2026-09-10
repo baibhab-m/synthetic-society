@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from .schema import SimConfig
+from .schema import Platform, PlatformMix, SimConfig
 
 
 @dataclass
@@ -79,7 +79,7 @@ PRESETS: dict[str, Preset] = {
 
 def build_config_for(preset: str, *, name: str | None = None) -> SimConfig:
     p = PRESETS[preset]
-    return SimConfig(
+    cfg = SimConfig(
         name=name or preset,
         seed_topic=p.default_seed[:120],
         domain=preset,
@@ -87,3 +87,35 @@ def build_config_for(preset: str, *, name: str | None = None) -> SimConfig:
         population_size=60,
         archetype_mix=p.archetype_mix,
     )
+    if preset == "political":
+        cfg.platform_mix = PlatformMix(weights={
+            Platform.WHATSAPP: 3.0,
+            Platform.TWITTER_X: 3.0,
+            Platform.TV_NEWS_DEBATE: 2.0,
+            Platform.PRINT_OPED: 1.0,
+            Platform.REDDIT_INDIA: 1.0,
+        })
+    elif preset == "consumer":
+        cfg.platform_mix = PlatformMix(weights={
+            Platform.TWITTER_X: 2.0,
+            Platform.INSTAGRAM: 2.0,
+            Platform.YOUTUBE: 1.5,
+            Platform.WHATSAPP: 1.0,
+            Platform.REDDIT_INDIA: 1.0,
+        })
+    elif preset == "campus":
+        cfg.platform_mix = PlatformMix(weights={
+            Platform.INSTAGRAM: 2.5,
+            Platform.TWITTER_X: 1.5,
+            Platform.REDDIT_INDIA: 2.0,
+            Platform.ANONYMOUS_CONFESSION: 1.5,
+            Platform.WHATSAPP: 1.0,
+        })
+    elif preset == "startup":
+        cfg.platform_mix = PlatformMix(weights={
+            Platform.TWITTER_X: 3.0,
+            Platform.LINKEDIN: 2.0,
+            Platform.PRINT_OPED: 1.0,
+            Platform.REDDIT_INDIA: 1.0,
+        })
+    return cfg
