@@ -1,0 +1,40 @@
+version: "3.9"
+
+# Synthetic Society ships in two modes:
+#   1) Default (this file): zero-infra. Uses embedded SQLite + in-process agents.
+#      Just run `docker compose up` and you're done. Good for the demo and small sims.
+#   2) Scaled: uncomment the postgres/redis services and set DATABASE_URL=postgresql+asyncpg://...
+#      Recommended when MAX_AGENTS_PER_SIM > 500 or you want to run parallel sims.
+
+services:
+  api:
+    build: .
+    container_name: synthetic-society
+    env_file: .env
+    ports:
+      - "${PORT:-8765}:8765"
+    volumes:
+      - ./data:/app/data
+      - ./runs:/app/runs
+    command: ["uvicorn", "synthetic_society.server:app", "--host", "0.0.0.0", "--port", "8765"]
+    restart: unless-stopped
+
+  # --- Uncomment for scaled mode ---
+  # postgres:
+  #   image: postgres:16-alpine
+  #   environment:
+  #     POSTGRES_DB: synthetic_society
+  #     POSTGRES_USER: synsoc
+  #     POSTGRES_PASSWORD: synsoc
+  #   volumes:
+  #     - pgdata:/var/lib/postgresql/data
+  #   ports:
+  #     - "5432:5432"
+  #
+  # redis:
+  #   image: redis:7-alpine
+  #   ports:
+  #     - "6379:6379"
+
+# volumes:
+#   pgdata:
