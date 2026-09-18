@@ -14,7 +14,6 @@ print op-eds, in 13 languages and 3 code-switching registers.
 
 <div align="center">
 
-[![PyPI](https://img.shields.io/pypi/v/synthetic-society?style=flat-square&color=blue)](https://pypi.org/project/synthetic-society/)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue?style=flat-square)](https://www.python.org)
 [![License: MIT-0](https://img.shields.io/badge/license-MIT--0-blue?style=flat-square)](LICENSE)
 [![Code style: ruff](https://img.shields.io/badge/code%20style-ruff-000000?style=flat-square)](https://docs.astral.sh/ruff/)
@@ -122,11 +121,12 @@ representative run.*
 ## ⚡ Install (60 seconds)
 
 ```bash
-pip install synthetic-society
+git clone https://github.com/baibhab-m/synthetic-society.git
+cd synthetic-society
+pip install -e .
+
 synsoc --help
 ```
-
-…or from source:
 
 ```bash
 git clone https://github.com/baibhab-m/synthetic-society.git
