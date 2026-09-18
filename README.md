@@ -1,6 +1,6 @@
 <div align="center">
 
-# 🪔 Synthetic Society
+# 🧬🤖 Synthetic Society
 
 **Spin up a synthetic India. Watch it argue about your idea.**
 
